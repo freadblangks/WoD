@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 DeathCore <http://www.noffearrdeathproject.net/>
+ * Copyright (C) 2022 BfaCore Reforged
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -15,29 +15,35 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef STORMSTOUT_BREWERY_H_
+#define STORMSTOUT_BREWERY_H_
 
-#ifndef DEF_STORMSTOUT_BREWERY_H_
-#define DEF_STORMSTOUT_BREWERY_H_
+#include "SpellScript.h"
+#include "Map.h"
+#include "Creature.h"
+#include "CreatureAIImpl.h"
 
-#define MAX_ENCOUNTERS 3
+#define SBScriptName "instance_stormstout_brewery"
 
-enum Creatures
+enum DataTypes
 {
-	BOSS_HOPTALLUS   = 56717,
-    BOSS_OOKOOK  = 56637,
-    BOSS_YANZHU_THE_UNCASKED  = 59479,   
+    DATA_OOK_OOK         = 1,
+    DATA_HOPTALLUS       = 2,
+    DATA_YAN_ZHU         = 3,
+    DATA_HOPTALLUS_EVENT =4
 };
 
-enum Objects
+enum CreaturesIds
 {
-    
+    NPC_OOK_OOK                = 56637,
+    NPC_BEER_BARREL_BUNNY      = 66215,
+    NPC_HOPTALLUS              = 56717,
+    NPC_YAN_ZHU                = 59479,
+    NPC_ANCESTRAL_BREWMASTER   = 59075, ///< Friendly.
+    NPC_ANCESTRAL_BREWMASTER_1 = 59075,
+    NPC_BLOATED_BREW_ALEMENTAL = 59518,
+    NPC_ANCESTRAL_BREWMASTER_2 = 65375,
+    NPC_ANCESTRAL_BREWMASTER_3 = 65376
 };
 
-enum Data
-{
-	DATA_OOKOOK  = 1,
-    DATA_HOPTALLUS   = 2,
-    DATA_YANZHU_THE_UNCASKED  = 3,
-};
-
-#endif
+#endif // STORMSTOUT_BREWERY_H_

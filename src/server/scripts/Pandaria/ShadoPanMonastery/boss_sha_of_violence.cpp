@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * Copyright (C) 2022 BfaCore Reforged
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,90 +17,132 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "shadopan_monastery.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ScriptMgr.h"
+#include "SpellMgr.h"
+#include "SpellInfo.h"
+#include "ScriptedCreature.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "MoveSplineInit.h"
+#include "Weather.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "Weather.h"
+#include <Instances/InstanceScript.h>
+#include <Movement/MotionMaster.h>
+#include "SpellInfo.h"
+#include "Player.h"
+#include "MotionMaster.h"
+#include "ScriptedCreature.h"
+#include "Vehicle.h"
+#include "GameObject.h"
+#include <Instances/InstanceScript.h>
+#include "TemporarySummon.h"
+#include "Position.h"
+#include <Globals/ObjectAccessor.h>
+#include <Maps/Map.cpp>
+#include "MapInstanced.h"
+#include <Instances/InstanceScript.h>
+#include <DungeonFinding/LFGMgr.h>
+#include "LFG.h"
+#include "InstanceScript.h"
+#include "EventMap.h"
+#include <Instances/InstanceScript.h>
 
-enum Texts
+enum eSpells
 {
-    SAY_AGGRO       = 0,
-    SAY_EARTHQUAKE  = 1,
-    SAY_OVERRUN     = 2,
-    SAY_SLAY        = 3,
-    SAY_DEATH       = 4
+    SPELL_SMOKE_BLADES          = 106826,
+    SPELL_SHA_SPIKE             = 106871,
+    SPELL_DISORIENTING_SMASH    = 106872,
+    SPELL_PARTING_SMOKE         = 127576,
+    SPELL_ENRAGE                = 130196,
+
+    SPELL_ICE_TRAP              = 110610,
+    SPELL_EXPLOSION             = 106966
 };
 
-enum Spells
+enum eEvents
 {
-    SPELL_EARTHQUAKE        = 153616,
-    SPELL_SUNDER_ARMOR      = 153726,
-    SPELL_CHAIN_LIGHTNING   = 153764,
-    SPELL_OVERRUN           = 154221,
-    SPELL_ENRAGE            = 157173,
-    SPELL_MARK_DEATH        = 153234,
-    SPELL_AURA_DEATH        = 153616
-};
-
-enum Events
-{
-    EVENT_ENRAGE    = 1,
-    EVENT_ARMOR     = 2,
-    EVENT_CHAIN     = 3,
-    EVENT_QUAKE     = 4,
-    EVENT_OVERRUN   = 5
+    // Gu
+    EVENT_SMOKE_BLADES          = 1,
+    EVENT_SHA_SPIKE             = 2,
+    EVENT_DISORIENTING_SMASH    = 3
 };
 
 class boss_sha_of_violence : public CreatureScript
 {
     public:
-        boss_sha_of_violence() : CreatureScript("boss_sha_of_violence") { }
+        boss_sha_of_violence() : CreatureScript("boss_sha_of_violence") {}
 
-        struct boss_sha_of_violenceAI : public ScriptedAI
+        struct boss_sha_of_violenceAI : public BossAI
         {
-            boss_sha_of_violenceAI(Creature* creature) : ScriptedAI(creature)
+            boss_sha_of_violenceAI(Creature* creature) : BossAI(creature, DATA_SHA_VIOLENCE)
             {
-                Initialize();
+                pInstance = creature->GetInstanceScript();
             }
 
-            void Initialize()
-            {
-                _inEnrage = false;
-            }
+            InstanceScript* pInstance;
+            bool enrageDone;
 
             void Reset() override
             {
-                _events.Reset();
-                _events.ScheduleEvent(EVENT_ENRAGE, 0);
-                _events.ScheduleEvent(EVENT_ARMOR, urand(5000, 13000));
-                _events.ScheduleEvent(EVENT_CHAIN, urand(10000, 30000));
-                _events.ScheduleEvent(EVENT_QUAKE, urand(25000, 35000));
-                _events.ScheduleEvent(EVENT_OVERRUN, urand(30000, 45000));
-                Initialize();
+                _Reset();
+                enrageDone = false;
+
+                events.ScheduleEvent(EVENT_SMOKE_BLADES, urand(25000, 35000));
+                events.ScheduleEvent(EVENT_SHA_SPIKE, urand(10000, 20000));
+                events.ScheduleEvent(EVENT_DISORIENTING_SMASH, urand(20000, 30000));
             }
 
-            void KilledUnit(Unit* victim) override
+            void JustReachedHome() override
             {
-                victim->CastSpell(victim, SPELL_MARK_DEATH, 0);
-
-                if (urand(0, 4))
-                    return;
-
-                Talk(SAY_SLAY);
+                pInstance->SetBossState(DATA_SHA_VIOLENCE, FAIL);
+                summons.DespawnAll();
             }
 
-            void JustDied(Unit* /*killer*/) override
+            void JustSummoned(Creature* summon) override
             {
-                Talk(SAY_DEATH);
+                summons.Summon(summon);
+                summon->CastSpell(summon, SPELL_ICE_TRAP, true);
             }
 
-            void EnterCombat(Unit* /*who*/) override
+            void DamageTaken(Unit* /*attacker*/, uint32& damage) override
             {
-                Talk(SAY_AGGRO);
-            }
-
-            void MoveInLineOfSight(Unit* who) override
-
-            {
-                if (who && who->GetTypeId() == TYPEID_PLAYER && me->IsValidAttackTarget(who))
-                    if (who->HasAura(SPELL_MARK_DEATH))
-                        who->CastSpell(who, SPELL_AURA_DEATH, 1);
+                if (!enrageDone && me->HealthBelowPctDamaged(20, damage))
+                    me->CastSpell(me, SPELL_ENRAGE, true);
             }
 
             void UpdateAI(uint32 diff) override
@@ -109,60 +150,32 @@ class boss_sha_of_violence : public CreatureScript
                 if (!UpdateVictim())
                     return;
 
-                _events.Update(diff);
+                events.Update(diff);
 
-                if (me->HasUnitState(UNIT_STATE_CASTING))
-                    return;
-
-                while (uint32 eventId = _events.ExecuteEvent())
+                switch(events.ExecuteEvent())
                 {
-                    switch (eventId)
-                    {
-                        case EVENT_ENRAGE:
-                            if (!HealthAbovePct(20))
-                            {
-                                DoCast(me, SPELL_ENRAGE);
-                                _events.ScheduleEvent(EVENT_ENRAGE, 6000);
-                                _inEnrage = true;
-                            }
-                            break;
-                        case EVENT_OVERRUN:
-                            Talk(SAY_OVERRUN);
-                            DoCastVictim(SPELL_OVERRUN);
-                            _events.ScheduleEvent(EVENT_OVERRUN, urand(25000, 40000));
-                            break;
-                        case EVENT_QUAKE:
-                            if (urand(0, 1))
-                                return;
+                    case EVENT_SMOKE_BLADES:
+                        me->CastSpell(me, SPELL_SMOKE_BLADES, false);
+                        events.ScheduleEvent(EVENT_SMOKE_BLADES,        urand(25000, 35000));
+                        break;
+                    case EVENT_SHA_SPIKE:
+                        if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 0, true))
+                            me->CastSpell(target, SPELL_SHA_SPIKE, false);
 
-                            Talk(SAY_EARTHQUAKE);
+                        events.ScheduleEvent(EVENT_SHA_SPIKE,           urand(10000, 20000));
+                        break;
+                    case EVENT_DISORIENTING_SMASH:
+                        if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0, 0, true))
+                            me->CastSpell(target, SPELL_DISORIENTING_SMASH, false);
 
-                            //remove enrage before casting earthquake because enrage + earthquake = 16000dmg over 8sec and all dead
-                            if (_inEnrage)
-                                me->RemoveAurasDueToSpell(SPELL_ENRAGE);
-
-                            DoCast(me, SPELL_EARTHQUAKE);
-                            _events.ScheduleEvent(EVENT_QUAKE, urand(30000, 55000));
-                            break;
-                        case EVENT_CHAIN:
-                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 0.0f, true))
-                                DoCast(target, SPELL_CHAIN_LIGHTNING);
-                            _events.ScheduleEvent(EVENT_CHAIN, urand(7000, 27000));
-                            break;
-                        case EVENT_ARMOR:
-                            DoCastVictim(SPELL_SUNDER_ARMOR);
-                            _events.ScheduleEvent(EVENT_ARMOR, urand(10000, 25000));
-                            break;
-                        default:
-                            break;
-                    }
+                        events.ScheduleEvent(EVENT_DISORIENTING_SMASH,  urand(20000, 30000));
+                        break;
+                    default:
+                        break;
                 }
+
                 DoMeleeAttackIfReady();
             }
-
-            private:
-                EventMap _events;
-                bool _inEnrage;
         };
 
         CreatureAI* GetAI(Creature* creature) const override

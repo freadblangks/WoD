@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * Copyright (C) 2022 BfaCore Reforged
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,91 +16,114 @@
  */
 
 #include "ScriptMgr.h"
+#include "SpellMgr.h"
+#include "SpellInfo.h"
 #include "ScriptedCreature.h"
-
-enum Texts
-{
-    SAY_AGGRO       = 0,
-    SAY_EARTHQUAKE  = 1,
-    SAY_OVERRUN     = 2,
-    SAY_SLAY        = 3,
-    SAY_DEATH       = 4
-};
-
-enum Spells
-{
-    SPELL_EARTHQUAKE        = 153616,
-    SPELL_SUNDER_ARMOR      = 153726,
-    SPELL_CHAIN_LIGHTNING   = 153764,
-    SPELL_OVERRUN           = 154221,
-    SPELL_ENRAGE            = 157173,
-    SPELL_MARK_DEATH        = 153234,
-    SPELL_AURA_DEATH        = 153616
-};
-
-enum Events
-{
-    EVENT_ENRAGE    = 1,
-    EVENT_ARMOR     = 2,
-    EVENT_CHAIN     = 3,
-    EVENT_QUAKE     = 4,
-    EVENT_OVERRUN   = 5
-};
+#include "mogu_shan_palace.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "MoveSplineInit.h"
+#include "Weather.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "Weather.h"
+#include <Instances/InstanceScript.h>
+#include <Movement/MotionMaster.h>
+#include "SpellInfo.h"
+#include "Player.h"
+#include "MotionMaster.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "Vehicle.h"
+#include "GameObject.h"
+#include <Instances/InstanceScript.h>
+#include "TemporarySummon.h"
+#include "Position.h"
+#include <Globals/ObjectAccessor.h>
+#include <Maps/Map.cpp>
+#include "MapInstanced.h"
+#include <Instances/InstanceScript.h>
+#include <DungeonFinding/LFGMgr.h>
+#include "LFG.h"
+#include "InstanceScript.h"
+#include "EventMap.h"
 
 class boss_xin_the_weaponmaster : public CreatureScript
 {
     public:
-        boss_xin_the_weaponmaster() : CreatureScript("boss_xin_the_weaponmaster") { }
+        boss_xin_the_weaponmaster() : CreatureScript("boss_xin_the_weaponmaster") {}
 
-        struct boss_xin_the_weaponmasterAI : public ScriptedAI
+        enum eEvents
         {
-            boss_xin_the_weaponmasterAI(Creature* creature) : ScriptedAI(creature)
+            EVENT_RING_OF_FIRE          = 1,
+            EVENT_HEURT                 = 2,
+            EVENT_INCITING_ROAR         = 3,
+            EVENT_SWORD_THROWER         = 4,
+            EVENT_SWORD_THROWER_STOP    = 5,
+            EVENT_AXES_ACTIVATE         = 6,
+            EVENT_AXES_DESACTIVATE      = 7
+        };
+
+        enum eSpells
+        {
+            SPELL_HEURT         = 119684,
+            SPELL_INCITING_ROAR = 122959,
+        };
+
+        struct boss_xin_the_weaponmaster_AI : public BossAI
+        {
+            boss_xin_the_weaponmaster_AI(Creature* creature) : BossAI(creature, DATA_XIN_THE_WEAPONMASTER)
             {
-                Initialize();
+                pInstance = creature->GetInstanceScript();
             }
 
-            void Initialize()
-            {
-                _inEnrage = false;
-            }
+            InstanceScript* pInstance;
 
             void Reset() override
             {
-                _events.Reset();
-                _events.ScheduleEvent(EVENT_ENRAGE, 0);
-                _events.ScheduleEvent(EVENT_ARMOR, urand(5000, 13000));
-                _events.ScheduleEvent(EVENT_CHAIN, urand(10000, 30000));
-                _events.ScheduleEvent(EVENT_QUAKE, urand(25000, 35000));
-                _events.ScheduleEvent(EVENT_OVERRUN, urand(30000, 45000));
-                Initialize();
-            }
+                if (pInstance)
+                    pInstance->SetData(TYPE_ACTIVATE_SWORD, 0);
 
-            void KilledUnit(Unit* victim) override
-            {
-                victim->CastSpell(victim, SPELL_MARK_DEATH, 0);
-
-                if (urand(0, 4))
-                    return;
-
-                Talk(SAY_SLAY);
-            }
-
-            void JustDied(Unit* /*killer*/) override
-            {
-                Talk(SAY_DEATH);
+                events.Reset();
             }
 
             void EnterCombat(Unit* /*who*/) override
             {
-                Talk(SAY_AGGRO);
-            }
-
-            void MoveInLineOfSight(Unit* who) override
-
-            {
-                if (who && who->GetTypeId() == TYPEID_PLAYER && me->IsValidAttackTarget(who))
-                    if (who->HasAura(SPELL_MARK_DEATH))
-                        who->CastSpell(who, SPELL_AURA_DEATH, 1);
+                events.ScheduleEvent(EVENT_RING_OF_FIRE, 3000);
+                events.ScheduleEvent(EVENT_HEURT, urand(10000, 15000));
+                events.ScheduleEvent(EVENT_INCITING_ROAR, urand(15000, 25000));
+                events.ScheduleEvent(EVENT_SWORD_THROWER, 30000);
+                events.ScheduleEvent(EVENT_AXES_ACTIVATE, 15000);
             }
 
             void UpdateAI(uint32 diff) override
@@ -109,69 +131,224 @@ class boss_xin_the_weaponmaster : public CreatureScript
                 if (!UpdateVictim())
                     return;
 
-                _events.Update(diff);
+                events.Update(diff);
 
                 if (me->HasUnitState(UNIT_STATE_CASTING))
                     return;
 
-                while (uint32 eventId = _events.ExecuteEvent())
+                while (uint32 eventId = events.ExecuteEvent())
                 {
                     switch (eventId)
                     {
-                        case EVENT_ENRAGE:
-                            if (!HealthAbovePct(20))
-                            {
-                                DoCast(me, SPELL_ENRAGE);
-                                _events.ScheduleEvent(EVENT_ENRAGE, 6000);
-                                _inEnrage = true;
-                            }
+                        case EVENT_RING_OF_FIRE:
+                            if (pInstance)
+                                pInstance->SetData(TYPE_ACTIVATE_ANIMATED_STAFF, 0);
+                            events.ScheduleEvent(EVENT_RING_OF_FIRE, 20000);
                             break;
-                        case EVENT_OVERRUN:
-                            Talk(SAY_OVERRUN);
-                            DoCastVictim(SPELL_OVERRUN);
-                            _events.ScheduleEvent(EVENT_OVERRUN, urand(25000, 40000));
+                        case EVENT_HEURT:
+                            me->CastSpell(me, SPELL_HEURT, false);
+                            events.ScheduleEvent(EVENT_HEURT, urand(10000, 15000));
                             break;
-                        case EVENT_QUAKE:
-                            if (urand(0, 1))
-                                return;
+                        case EVENT_INCITING_ROAR:
+                            me->CastSpell(me, SPELL_INCITING_ROAR, false);
+                            events.ScheduleEvent(EVENT_INCITING_ROAR, 30000);
+                            break;
+                        case EVENT_SWORD_THROWER:
+                            if (pInstance)
+                                pInstance->SetData(TYPE_ACTIVATE_SWORD, 1);
+                            events.ScheduleEvent(EVENT_SWORD_THROWER_STOP, 10000);
+                            break;
+                        case EVENT_SWORD_THROWER_STOP:
+                            if (pInstance)
+                                pInstance->SetData(TYPE_ACTIVATE_SWORD, 0);
+                            events.ScheduleEvent(EVENT_SWORD_THROWER, 20000);
+                            break;
+                        case EVENT_AXES_ACTIVATE:
+                            if (pInstance)
+                                pInstance->SetData(TYPE_ACTIVATE_ANIMATED_AXE, 1);
 
-                            Talk(SAY_EARTHQUAKE);
+                            events.ScheduleEvent(EVENT_AXES_DESACTIVATE, 10000);
+                            break;
+                        case EVENT_AXES_DESACTIVATE:
+                            if (pInstance)
+                                pInstance->SetData(TYPE_ACTIVATE_ANIMATED_AXE, 0);
 
-                            //remove enrage before casting earthquake because enrage + earthquake = 16000dmg over 8sec and all dead
-                            if (_inEnrage)
-                                me->RemoveAurasDueToSpell(SPELL_ENRAGE);
-
-                            DoCast(me, SPELL_EARTHQUAKE);
-                            _events.ScheduleEvent(EVENT_QUAKE, urand(30000, 55000));
-                            break;
-                        case EVENT_CHAIN:
-                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 0.0f, true))
-                                DoCast(target, SPELL_CHAIN_LIGHTNING);
-                            _events.ScheduleEvent(EVENT_CHAIN, urand(7000, 27000));
-                            break;
-                        case EVENT_ARMOR:
-                            DoCastVictim(SPELL_SUNDER_ARMOR);
-                            _events.ScheduleEvent(EVENT_ARMOR, urand(10000, 25000));
-                            break;
-                        default:
+                            events.ScheduleEvent(EVENT_AXES_ACTIVATE, 15000);
                             break;
                     }
                 }
+
                 DoMeleeAttackIfReady();
             }
-
-            private:
-                EventMap _events;
-                bool _inEnrage;
         };
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new boss_xin_the_weaponmasterAI(creature);
+            return new boss_xin_the_weaponmaster_AI(creature);
         }
+};
+
+class mob_animated_staff : public CreatureScript
+{
+    public:
+        mob_animated_staff() : CreatureScript("mob_animated_staff") {}
+
+        enum eSpells
+        {
+            SPELL_RING_OF_FIRE_0 = 119544,
+            SPELL_RING_OF_FIRE_1 = 119590,
+        };
+
+        enum eActions
+        {
+            ACTION_ACTIVATE,
+        };
+
+        enum eEvents
+        {
+            EVENT_SUMMON_RING_OF_FIRE = 1,
+            EVENT_UNSUMMON = 2,
+            EVENT_SUMMON_RING_TRIGGER = 3,
+        };
+
+        enum eCreatures
+        {
+            CREATURE_RING_OF_FIRE = 61499,
+        };
+
+        struct mob_animated_staff_AI : public ScriptedAI
+        {
+            mob_animated_staff_AI(Creature* creature) : ScriptedAI(creature)
+            {
+                me->SetDisplayId(42195);
+                me->SetVirtualItem(0, 76364);
+                me->SetHomePosition(me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), me->GetOrientation());
+            }
+
+            EventMap events;
+            float _x;
+            float _y;
+            float point;
+
+            void Reset() override
+            {
+                _x = 0.0f;
+                _y = 0.0f;
+                point = 0.0f;
+
+                me->AddAura(SPELL_PERMANENT_FEIGN_DEATH, me);
+
+                Position home = me->GetHomePosition();
+                me->GetMotionMaster()->MovePoint(0, home);
+            }
+
+            void EnterCombat(Unit* /*who*/) override {}
+
+            void DoAction(int32 action) override
+            {
+                switch (action)
+                {
+                    case ACTION_ACTIVATE:
+                        me->RemoveAura(SPELL_PERMANENT_FEIGN_DEATH);
+                        events.ScheduleEvent(EVENT_SUMMON_RING_OF_FIRE, 500);
+                        break;
+                }
+            }
+
+            void JustSummoned(Creature* summoned) override
+            {
+                if (summoned->GetEntry() == CREATURE_RING_OF_FIRE)
+                {
+                    summoned->SetFaction(14);
+                    summoned->SetReactState(REACT_PASSIVE);
+                    summoned->AddAura(SPELL_RING_OF_FIRE_0, summoned);
+                }
+            }
+
+            void UpdateAI(uint32 diff) override
+            {
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                        case EVENT_SUMMON_RING_OF_FIRE:
+                        {
+                            events.ScheduleEvent(EVENT_UNSUMMON, 9000);
+                            Unit* target = nullptr;
+                            std::list<Unit*> units;
+
+                            Map::PlayerList const& PlayerList = me->GetMap()->GetPlayers();
+                            if (!PlayerList.isEmpty())
+                                for (Map::PlayerList::const_iterator i = PlayerList.begin(); i != PlayerList.end(); ++i)
+                                    if (Player* plr = i->GetSource())
+                                        if (plr->IsAlive() && !plr->IsGameMaster())
+                                            units.push_back(plr);
+
+                            if (units.empty())
+                                return;
+
+                            target = Trinity::Containers::SelectRandomContainerElement(units);
+                            if (!target)
+                                return;
+
+                            me->GetMotionMaster()->MovePoint(0, target->GetPositionX(), target->GetPositionY(), target->GetPositionZ());
+                            point = 0.0f;
+                            _x = target->GetPositionX();
+                            _y = target->GetPositionY();
+                            events.ScheduleEvent(EVENT_SUMMON_RING_TRIGGER, 100);
+                            break;
+                        }
+                        case EVENT_UNSUMMON:
+                            Reset();
+                            break;
+                        case EVENT_SUMMON_RING_TRIGGER:
+                        {
+                            if (point >= 11)
+                            {
+                                if (TempSummon* tmp = me->SummonCreature(CREATURE_RING_OF_FIRE, _x, _y, me->GetMap()->GetHeight(me->GetPhaseShift(), _x, _y, me->GetPositionZ()), 0.0f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 10000))
+                                {
+                                    tmp->RemoveAura(SPELL_RING_OF_FIRE_0);
+                                    tmp->CastSpell(tmp, SPELL_RING_OF_FIRE_1, false);
+                                }
+                                return;
+                            }
+
+                            float x = _x + 5.0f * cos(point * M_PI / 5);
+                            float y = _y + 5.0f * sin(point * M_PI / 5);
+                            me->SummonCreature(CREATURE_RING_OF_FIRE, x, y, me->GetMap()->GetHeight(me->GetPhaseShift(), x, y, me->GetPositionZ()), 0.0f, TEMPSUMMON_TIMED_OR_DEAD_DESPAWN, 10000);
+                            ++point;
+                            events.ScheduleEvent(EVENT_SUMMON_RING_TRIGGER, 400);
+                            break;
+                        }
+                    }
+                }
+            }
+        };
+
+        CreatureAI* GetAI(Creature* creature) const override
+        {
+            return new mob_animated_staff_AI(creature);
+        }
+};
+
+class OnlyTriggerInFrontPredicate
+{
+    public:
+        OnlyTriggerInFrontPredicate(Unit* caster) : _caster(caster) {}
+
+        bool operator()(WorldObject* target)
+        {
+            return target->GetEntry() != 59481 || !_caster->isInFront(target, (float)M_PI / 5) || target->GetGUID() == _caster->GetGUID();
+        }
+
+    private:
+        Unit* _caster;
 };
 
 void AddSC_boss_xin_the_weaponmaster()
 {
     new boss_xin_the_weaponmaster();
+    new mob_animated_staff();
 }

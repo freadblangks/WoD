@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * Copyright (C) 2022 BfaCore Reforged
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,160 +17,284 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
-
-enum Texts
-{
-    SAY_AGGRO       = 0,
-    SAY_EARTHQUAKE  = 1,
-    SAY_OVERRUN     = 2,
-    SAY_SLAY        = 3,
-    SAY_DEATH       = 4
-};
-
-enum Spells
-{
-    SPELL_EARTHQUAKE        = 153616,
-    SPELL_SUNDER_ARMOR      = 153726,
-    SPELL_CHAIN_LIGHTNING   = 153764,
-    SPELL_OVERRUN           = 154221,
-    SPELL_ENRAGE            = 157173,
-    SPELL_MARK_DEATH        = 153234,
-    SPELL_AURA_DEATH        = 153616
-};
-
-enum Events
-{
-    EVENT_ENRAGE    = 1,
-    EVENT_ARMOR     = 2,
-    EVENT_CHAIN     = 3,
-    EVENT_QUAKE     = 4,
-    EVENT_OVERRUN   = 5
-};
+#include "stormstout_brewery.h"
+#include "Vehicle.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ScriptMgr.h"
+#include "SpellMgr.h"
+#include "SpellInfo.h"
+#include "ScriptedCreature.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "MoveSplineInit.h"
+#include "Weather.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "Weather.h"
+#include <Instances/InstanceScript.h>
+#include <Movement/MotionMaster.h>
+#include "SpellInfo.h"
+#include "Player.h"
+#include "MotionMaster.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "Vehicle.h"
+#include "GameObject.h"
+#include <Instances/InstanceScript.h>
+#include "TemporarySummon.h"
+#include "Position.h"
+#include <Globals/ObjectAccessor.h>
+#include <Maps/Map.cpp>
+#include "MapInstanced.h"
+#include <Instances/InstanceScript.h>
+#include <DungeonFinding/LFGMgr.h>
+#include "LFG.h"
+#include "InstanceScript.h"
+#include "EventMap.h"
+#include <Instances/InstanceScript.h>
+#include "Auras/SpellAuras.h"
 
 class boss_ook_ook : public CreatureScript
 {
     public:
         boss_ook_ook() : CreatureScript("boss_ook_ook") { }
 
-        struct boss_ook_ookAI : public ScriptedAI
+        struct boss_ook_ook_AI : public BossAI
         {
-            boss_ook_ookAI(Creature* creature) : ScriptedAI(creature)
-            {
-                Initialize();
-            }
-
-            void Initialize()
-            {
-                _inEnrage = false;
-            }
+            boss_ook_ook_AI(Creature* creature) : BossAI(creature, DATA_OOK_OOK) {}
 
             void Reset() override
-            {
-                _events.Reset();
-                _events.ScheduleEvent(EVENT_ENRAGE, 0);
-                _events.ScheduleEvent(EVENT_ARMOR, urand(5000, 13000));
-                _events.ScheduleEvent(EVENT_CHAIN, urand(10000, 30000));
-                _events.ScheduleEvent(EVENT_QUAKE, urand(25000, 35000));
-                _events.ScheduleEvent(EVENT_OVERRUN, urand(30000, 45000));
-                Initialize();
-            }
+            {}
 
-            void KilledUnit(Unit* victim) override
-            {
-                victim->CastSpell(victim, SPELL_MARK_DEATH, 0);
+            void EnterCombat(Unit* /*who*/) override
+            {}
 
-                if (urand(0, 4))
-                    return;
+            void DoAction(const int32 /*action*/) override
+            {}
 
-                Talk(SAY_SLAY);
-            }
+            void KilledUnit(Unit* /*victim*/) override
+            {}
 
             void JustDied(Unit* /*killer*/) override
             {
-                Talk(SAY_DEATH);
+                _JustDied();
             }
 
-            void EnterCombat(Unit* /*who*/) override
-            {
-                Talk(SAY_AGGRO);
-            }
+            void DamageTaken(Unit* /*attacker*/, uint32& /*damage*/) override
+            {}
 
-            void MoveInLineOfSight(Unit* who) override
+            void MoveInLineOfSight(Unit* /*who*/) override
+            {}
 
-            {
-                if (who && who->GetTypeId() == TYPEID_PLAYER && me->IsValidAttackTarget(who))
-                    if (who->HasAura(SPELL_MARK_DEATH))
-                        who->CastSpell(who, SPELL_AURA_DEATH, 1);
-            }
-
-            void UpdateAI(uint32 diff) override
-            {
-                if (!UpdateVictim())
-                    return;
-
-                _events.Update(diff);
-
-                if (me->HasUnitState(UNIT_STATE_CASTING))
-                    return;
-
-                while (uint32 eventId = _events.ExecuteEvent())
-                {
-                    switch (eventId)
-                    {
-                        case EVENT_ENRAGE:
-                            if (!HealthAbovePct(20))
-                            {
-                                DoCast(me, SPELL_ENRAGE);
-                                _events.ScheduleEvent(EVENT_ENRAGE, 6000);
-                                _inEnrage = true;
-                            }
-                            break;
-                        case EVENT_OVERRUN:
-                            Talk(SAY_OVERRUN);
-                            DoCastVictim(SPELL_OVERRUN);
-                            _events.ScheduleEvent(EVENT_OVERRUN, urand(25000, 40000));
-                            break;
-                        case EVENT_QUAKE:
-                            if (urand(0, 1))
-                                return;
-
-                            Talk(SAY_EARTHQUAKE);
-
-                            //remove enrage before casting earthquake because enrage + earthquake = 16000dmg over 8sec and all dead
-                            if (_inEnrage)
-                                me->RemoveAurasDueToSpell(SPELL_ENRAGE);
-
-                            DoCast(me, SPELL_EARTHQUAKE);
-                            _events.ScheduleEvent(EVENT_QUAKE, urand(30000, 55000));
-                            break;
-                        case EVENT_CHAIN:
-                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 0.0f, true))
-                                DoCast(target, SPELL_CHAIN_LIGHTNING);
-                            _events.ScheduleEvent(EVENT_CHAIN, urand(7000, 27000));
-                            break;
-                        case EVENT_ARMOR:
-                            DoCastVictim(SPELL_SUNDER_ARMOR);
-                            _events.ScheduleEvent(EVENT_ARMOR, urand(10000, 25000));
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                DoMeleeAttackIfReady();
-            }
-
-            private:
-                EventMap _events;
-                bool _inEnrage;
+            void UpdateAI(uint32 /*diff*/) override
+            {}
         };
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new boss_ook_ookAI(creature);
+            return new boss_ook_ook_AI(creature);
+        }
+};
+
+enum eSpells
+{
+    SPELL_BAREL_EXPLOSION           = 106769,
+    SPELL_FORCECAST_BARREL_DROP     = 122385
+};
+
+class npc_barrel : public CreatureScript
+{
+    public:
+        npc_barrel() : CreatureScript("npc_barrel") { }
+
+        struct npc_barrel_AI : public ScriptedAI
+        {
+            npc_barrel_AI(Creature* creature) : ScriptedAI(creature) {}
+
+            void Reset() override
+            {
+                me->GetMotionMaster()->MovePoint(100, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ());
+            }
+
+            void MovementInform(uint32 /*type*/, uint32 id) override
+            {
+                if (id != 100)
+                    return;
+
+                float x = 0, y = 0;
+                me->GetPositionWithDistInOrientation(5.0f, me->GetOrientation(), x, y);
+
+                me->GetMotionMaster()->MovePoint(100, x, y, me->GetPositionZ());
+            }
+
+            bool CheckIfAgainstWall()
+            {
+                float x = 0, y = 0;
+                me->GetPositionWithDistInOrientation(5.0f,  me->GetOrientation(),x, y);
+
+                if (!me->IsWithinLOS(x, y, me->GetPositionZ()))
+                    return true;
+
+                return false;
+            }
+
+            bool CheckIfAgainstUnit()
+            {
+                if (me->SelectNearbyTarget(NULL, 1.0f))
+                    return true;
+
+                return false;
+            }
+
+            void DoExplode()
+            {
+                if (Vehicle* barrel = me->GetVehicleKit())
+                    barrel->RemoveAllPassengers();
+
+                me->Kill(me);
+                me->CastSpell(me, SPELL_BAREL_EXPLOSION, true);
+            }
+
+            void UpdateAI(uint32 /*diff*/) override
+            {
+                if (CheckIfAgainstWall() || CheckIfAgainstUnit())
+                    DoExplode();
+            }
+        };
+
+        CreatureAI* GetAI(Creature* creature) const override
+        {
+            return new npc_barrel_AI(creature);
+        }
+};
+
+class spell_ook_ook_barrel_ride: public SpellScriptLoader
+{
+    public:
+        spell_ook_ook_barrel_ride() :  SpellScriptLoader("spell_ook_ook_barrel_ride") { }
+
+        class spell_ook_ook_barrel_ride_AuraScript : public AuraScript
+        {
+            PrepareAuraScript(spell_ook_ook_barrel_ride_AuraScript);
+
+            void OnApply(AuraEffect const* /*aurEff*/, AuraEffectHandleModes /*mode*/)
+            {
+                if (GetTarget())
+                    if (Unit* barrelBase = GetTarget())
+                        barrelBase->GetMotionMaster()->MoveIdle();
+            }
+
+            void Register() override
+            {
+                OnEffectApply += AuraEffectApplyFn(spell_ook_ook_barrel_ride_AuraScript::OnApply, EFFECT_0, SPELL_AURA_CONTROL_VEHICLE, AURA_EFFECT_HANDLE_REAL_OR_REAPPLY_MASK);
+            }
+        };
+
+        AuraScript* GetAuraScript() const override
+        {
+            return new spell_ook_ook_barrel_ride_AuraScript();
+        }
+};
+
+class spell_ook_ook_barrel: public SpellScriptLoader
+{
+    public:
+        spell_ook_ook_barrel() :  SpellScriptLoader("spell_ook_ook_barrel") { }
+
+        class spell_ook_ook_barrel_AuraScript : public AuraScript
+        {
+            PrepareAuraScript(spell_ook_ook_barrel_AuraScript);
+
+            bool CheckIfAgainstWall(Unit* caster)
+            {
+                float x = caster->GetPositionX() + (2 * cos(caster->GetOrientation()));
+                float y = caster->GetPositionY() + (2 * sin(caster->GetOrientation()));
+
+                if (!caster->IsWithinLOS(x, y, caster->GetPositionZ()))
+                    return true;
+
+                return false;
+            }
+
+            bool CheckIfAgainstUnit(Unit* caster)
+            {
+                if (caster->SelectNearbyTarget(NULL, 1.0f))
+                    return true;
+
+                return false;
+            }
+
+            void OnUpdate(uint32 /*diff*/)
+            {
+                Unit* caster = GetCaster();
+                if (!caster)
+                    return;
+
+                if (CheckIfAgainstWall(caster) || CheckIfAgainstUnit(caster))
+                {
+                    if (Vehicle* barrel = caster->GetVehicle())
+                    {
+                        barrel->RemoveAllPassengers();
+
+                        if (Unit* barrelBase = barrel->GetBase())
+                        {
+                            barrelBase->CastSpell(barrelBase, SPELL_BAREL_EXPLOSION, true);
+                            barrelBase->Kill(barrelBase);
+                        }
+                    }
+
+                    caster->CastSpell(caster, SPELL_FORCECAST_BARREL_DROP, true);
+                    caster->RemoveAurasDueToSpell(GetSpellInfo()->Id);
+                }
+            }
+
+            void Register() override
+            {
+                OnAuraUpdate += AuraUpdateFn(spell_ook_ook_barrel_AuraScript::OnUpdate);
+            }
+        };
+
+        AuraScript* GetAuraScript() const override
+        {
+            return new spell_ook_ook_barrel_AuraScript();
         }
 };
 
 void AddSC_boss_ook_ook()
 {
     new boss_ook_ook();
+    new npc_barrel();
+    new spell_ook_ook_barrel_ride();
+    new spell_ook_ook_barrel();
 }

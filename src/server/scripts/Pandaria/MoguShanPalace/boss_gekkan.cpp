@@ -1,6 +1,5 @@
 /*
- * Copyright (C) 2008-2015 TrinityCore <http://www.trinitycore.org/>
- * Copyright (C) 2006-2009 ScriptDev2 <https://scriptdev2.svn.sourceforge.net/>
+ * Copyright (C) 2022 BfaCore Reforged
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -18,90 +17,164 @@
 
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
+#include "mogu_shan_palace.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "MoveSplineInit.h"
+#include "Weather.h"
+#include "GameObjectAI.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "ObjectMgr.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "SpellScript.h"
+#include "SpellAuraEffects.h"
+#include "SpellAuras.h"
+#include "MapManager.h"
+#include "Spell.h"
+#include "Vehicle.h"
+#include "Cell.h"
+#include "CellImpl.h"
+#include "GridNotifiers.h"
+#include "GridNotifiersImpl.h"
+#include "CreatureTextMgr.h"
+#include "Weather.h"
+#include <Instances/InstanceScript.h>
+#include <Movement/MotionMaster.h>
+#include "SpellInfo.h"
+#include "Player.h"
+#include "MotionMaster.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
+#include "Vehicle.h"
+#include "GameObject.h"
+#include <Instances/InstanceScript.h>
+#include "TemporarySummon.h"
+#include "Position.h"
+#include <Globals/ObjectAccessor.h>
+#include <Maps/Map.cpp>
+#include "MapInstanced.h"
+#include <Instances/InstanceScript.h>
+#include <DungeonFinding/LFGMgr.h>
+#include "LFG.h"
+#include "InstanceScript.h"
+#include "EventMap.h"
 
-enum Texts
+#define TYPE_GET_ENTOURAGE 14
+
+enum eSpells
 {
-    SAY_AGGRO       = 0,
-    SAY_EARTHQUAKE  = 1,
-    SAY_OVERRUN     = 2,
-    SAY_SLAY        = 3,
-    SAY_DEATH       = 4
+    SPELL_RECKLESS_INSPIRATION = 118988,
+    SPELL_SHANK                = 118963,
+    SPELL_IRON_PROTECTOR       = 118958,
+    SPELL_CLEANSING_FLAME      = 118940,
+    SPELL_FIRE_BOLT            = 118936,
+    SPELL_HEX_OF_LETHARGY      = 118903,
+    SPELL_DARK_BOLT            = 118917
 };
 
-enum Spells
+enum eActions
 {
-    SPELL_EARTHQUAKE        = 153616,
-    SPELL_SUNDER_ARMOR      = 153726,
-    SPELL_CHAIN_LIGHTNING   = 153764,
-    SPELL_OVERRUN           = 154221,
-    SPELL_ENRAGE            = 157173,
-    SPELL_MARK_DEATH        = 153234,
-    SPELL_AURA_DEATH        = 153616
+    ACTION_ENTOURAGE_DIED
 };
 
-enum Events
+enum eEvents
 {
-    EVENT_ENRAGE    = 1,
-    EVENT_ARMOR     = 2,
-    EVENT_CHAIN     = 3,
-    EVENT_QUAKE     = 4,
-    EVENT_OVERRUN   = 5
+    EVENT_RECKLESS_INSPIRATION
+};
+
+enum eTalks
+{
+    TALK_INTRO,
+    TALK_KILLING,
+    TALK_SPELL,
+    TALK_AGGRO,
+    TALK_DEATH
 };
 
 class boss_gekkan : public CreatureScript
 {
     public:
-        boss_gekkan() : CreatureScript("boss_gekkan") { }
+        boss_gekkan() : CreatureScript("boss_gekkan") {}
 
-        struct boss_gekkanAI : public ScriptedAI
+        struct boss_gekkan_AI : public BossAI
         {
-            boss_gekkanAI(Creature* creature) : ScriptedAI(creature)
-            {
-                Initialize();
-            }
+            boss_gekkan_AI(Creature* creature) : BossAI(creature, DATA_GEKKAN) {}
 
-            void Initialize()
-            {
-                _inEnrage = false;
-            }
-
-            void Reset() override
-            {
-                _events.Reset();
-                _events.ScheduleEvent(EVENT_ENRAGE, 0);
-                _events.ScheduleEvent(EVENT_ARMOR, urand(5000, 13000));
-                _events.ScheduleEvent(EVENT_CHAIN, urand(10000, 30000));
-                _events.ScheduleEvent(EVENT_QUAKE, urand(25000, 35000));
-                _events.ScheduleEvent(EVENT_OVERRUN, urand(30000, 45000));
-                Initialize();
-            }
-
-            void KilledUnit(Unit* victim) override
-            {
-                victim->CastSpell(victim, SPELL_MARK_DEATH, 0);
-
-                if (urand(0, 4))
-                    return;
-
-                Talk(SAY_SLAY);
-            }
-
-            void JustDied(Unit* /*killer*/) override
-            {
-                Talk(SAY_DEATH);
-            }
+            std::list<ObjectGuid> entourage;
 
             void EnterCombat(Unit* /*who*/) override
             {
-                Talk(SAY_AGGRO);
+                //Get the four adds.
+                if (me->GetInstanceScript())
+                    for (int i = 0; i < 4; ++i)
+                        entourage.push_back(me->GetInstanceScript()->GetGuidData(TYPE_GET_ENTOURAGE + i));
+                events.ScheduleEvent(EVENT_RECKLESS_INSPIRATION, 3000);
+                Talk(TALK_AGGRO);
+
+                if (me->GetInstanceScript())
+                    me->GetInstanceScript()->SetData(DATA_GEKKAN_ADDS, 1);
             }
 
-            void MoveInLineOfSight(Unit* who) override
-
+            void JustDied(Unit* /*who*/) override
             {
-                if (who && who->GetTypeId() == TYPEID_PLAYER && me->IsValidAttackTarget(who))
-                    if (who->HasAura(SPELL_MARK_DEATH))
-                        who->CastSpell(who, SPELL_AURA_DEATH, 1);
+                for (auto guid : entourage)
+                {
+                    Creature* c = me->GetMap()->GetCreature(guid);
+                    if (!c)
+                        continue;
+                    if (c->IsAlive())
+                        me->CastSpell(c, SPELL_RECKLESS_INSPIRATION, false);
+                }
+                Talk(TALK_DEATH);
+            }
+
+            void KilledUnit(Unit* /*killer*/) override
+            {
+                Talk(TALK_KILLING);
+            }
+
+            void DoAction(int32 action) override
+            {
+                switch (action)
+                {
+                    case ACTION_ENTOURAGE_DIED:
+                    {
+                        //Delete the guid of the list if one dies.
+                        ObjectGuid dead_entourage = ObjectGuid::Empty;
+                        for (auto guid : entourage)
+                        {
+                            Creature* c = me->GetMap()->GetCreature(guid);
+                            if (!c)
+                                continue;
+                            if (c->isDead())
+                            {
+                                dead_entourage = guid;
+                                break;
+                            }
+                        }
+                        entourage.remove(dead_entourage);
+                        me->CastSpell(me, SPELL_RECKLESS_INSPIRATION, false);
+                        Talk(TALK_SPELL);
+                    }
+                    break;
+                }
             }
 
             void UpdateAI(uint32 diff) override
@@ -109,69 +182,246 @@ class boss_gekkan : public CreatureScript
                 if (!UpdateVictim())
                     return;
 
-                _events.Update(diff);
+                events.Update(diff);
 
                 if (me->HasUnitState(UNIT_STATE_CASTING))
                     return;
 
-                while (uint32 eventId = _events.ExecuteEvent())
+                while (uint32 eventId = events.ExecuteEvent())
                 {
                     switch (eventId)
                     {
-                        case EVENT_ENRAGE:
-                            if (!HealthAbovePct(20))
+                        case EVENT_RECKLESS_INSPIRATION:
+                        {
+                            //Cast on a random entourage the inspiration.
+                            std::list<ObjectGuid>::iterator itr = entourage.begin();
+                            std::advance(itr, urand(0, entourage.size() - 1));
+                            ObjectGuid guid = *itr;
+                            Creature* c = me->GetMap()->GetCreature(guid);
+                            if (c)
                             {
-                                DoCast(me, SPELL_ENRAGE);
-                                _events.ScheduleEvent(EVENT_ENRAGE, 6000);
-                                _inEnrage = true;
+                                me->CastSpell(c, SPELL_RECKLESS_INSPIRATION, false);
+                                Talk(TALK_SPELL);
                             }
-                            break;
-                        case EVENT_OVERRUN:
-                            Talk(SAY_OVERRUN);
-                            DoCastVictim(SPELL_OVERRUN);
-                            _events.ScheduleEvent(EVENT_OVERRUN, urand(25000, 40000));
-                            break;
-                        case EVENT_QUAKE:
-                            if (urand(0, 1))
-                                return;
-
-                            Talk(SAY_EARTHQUAKE);
-
-                            //remove enrage before casting earthquake because enrage + earthquake = 16000dmg over 8sec and all dead
-                            if (_inEnrage)
-                                me->RemoveAurasDueToSpell(SPELL_ENRAGE);
-
-                            DoCast(me, SPELL_EARTHQUAKE);
-                            _events.ScheduleEvent(EVENT_QUAKE, urand(30000, 55000));
-                            break;
-                        case EVENT_CHAIN:
-                            if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 1, 0.0f, true))
-                                DoCast(target, SPELL_CHAIN_LIGHTNING);
-                            _events.ScheduleEvent(EVENT_CHAIN, urand(7000, 27000));
-                            break;
-                        case EVENT_ARMOR:
-                            DoCastVictim(SPELL_SUNDER_ARMOR);
-                            _events.ScheduleEvent(EVENT_ARMOR, urand(10000, 25000));
-                            break;
-                        default:
-                            break;
+                            events.ScheduleEvent(EVENT_RECKLESS_INSPIRATION, 5000);
+                        }
+                        break;
                     }
                 }
+
                 DoMeleeAttackIfReady();
             }
-
-            private:
-                EventMap _events;
-                bool _inEnrage;
         };
 
         CreatureAI* GetAI(Creature* creature) const override
         {
-            return new boss_gekkanAI(creature);
+            return new boss_gekkan_AI(creature);
+        }
+};
+
+class mob_glintrok_skulker : public CreatureScript
+{
+    public:
+        mob_glintrok_skulker() : CreatureScript("mob_glintrok_skulker") { }
+
+        struct mob_glintrok_skulker_AI : public ScriptedAI
+        {
+            mob_glintrok_skulker_AI(Creature* creature) : ScriptedAI(creature) {}
+
+            EventMap events;
+
+            void EnterCombat(Unit* /*unit*/) override
+            {
+                events.ScheduleEvent(1, 2000);
+
+                if (me->GetInstanceScript())
+                    me->GetInstanceScript()->SetData(DATA_GEKKAN_ADDS, 1);
+            }
+
+            void UpdateAI(uint32 diff) override
+            {
+                if (!UpdateVictim())
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                    case 1:
+                        me->CastSpell(me->GetVictim(), SPELL_SHANK, false);
+                        events.ScheduleEvent(1, 7000);
+                        break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+        };
+
+        CreatureAI* GetAI(Creature* creature) const override
+        {
+            return new mob_glintrok_skulker_AI(creature);
+        }
+};
+
+class mob_glintrok_ironhide : public CreatureScript
+{
+    public:
+        mob_glintrok_ironhide() : CreatureScript("mob_glintrok_ironhide") {}
+
+        struct mob_glintrok_ironhide_AI : public ScriptedAI
+        {
+            mob_glintrok_ironhide_AI(Creature* creature) : ScriptedAI(creature) { }
+
+            EventMap events;
+
+            void EnterCombat(Unit* /*unit*/) override
+            {
+                events.ScheduleEvent(1, 2000);
+
+                if (me->GetInstanceScript())
+                    me->GetInstanceScript()->SetData(DATA_GEKKAN_ADDS, 1);
+            }
+
+            void UpdateAI(uint32 diff) override
+            {
+                if (!UpdateVictim())
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                    case 1:
+                        me->CastSpell(me, SPELL_IRON_PROTECTOR, false);
+                        events.ScheduleEvent(1, 15000);
+                        break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+        };
+
+        CreatureAI* GetAI(Creature* creature) const override
+        {
+            return new mob_glintrok_ironhide_AI(creature);
+        }
+};
+
+class mob_glintrok_oracle : public CreatureScript
+{
+    public:
+        mob_glintrok_oracle() : CreatureScript("mob_glintrok_oracle") {}
+
+        struct mob_glintrok_oracle_AI : public ScriptedAI
+        {
+            mob_glintrok_oracle_AI(Creature* creature) : ScriptedAI(creature) {}
+
+            EventMap events;
+
+            void EnterCombat(Unit* /*unit*/) override
+            {
+                events.ScheduleEvent(1, 2000);
+                events.ScheduleEvent(2, 4000);
+
+                if (me->GetInstanceScript())
+                    me->GetInstanceScript()->SetData(DATA_GEKKAN_ADDS, 1);
+            }
+
+            void UpdateAI(uint32 diff) override
+            {
+                if (!UpdateVictim())
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                    case 1:
+                        me->CastSpell(me, SPELL_CLEANSING_FLAME, false);
+                        events.ScheduleEvent(1, 25000);
+                        break;
+                    case 2:
+                        me->CastSpell(me->GetVictim(), SPELL_FIRE_BOLT, false);
+                        events.ScheduleEvent(2, 7000);
+                        break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+        };
+
+        CreatureAI* GetAI(Creature* creature) const override
+        {
+            return new mob_glintrok_oracle_AI(creature);
+        }
+};
+
+class mob_glintrok_hexxer : public CreatureScript
+{
+    public:
+        mob_glintrok_hexxer() : CreatureScript("mob_glintrok_hexxer") {}
+
+        struct mob_glintrok_hexxer_AI : public ScriptedAI
+        {
+            mob_glintrok_hexxer_AI(Creature* creature) : ScriptedAI(creature) {}
+
+            EventMap events;
+
+            void EnterCombat(Unit* /*unit*/) override
+            {
+                events.ScheduleEvent(1, 2000);
+                events.ScheduleEvent(2, 4000);
+
+                if (me->GetInstanceScript())
+                    me->GetInstanceScript()->SetData(DATA_GEKKAN_ADDS, 1);
+            }
+
+            void UpdateAI(uint32 diff) override
+            {
+                if (!UpdateVictim())
+                    return;
+
+                events.Update(diff);
+
+                while (uint32 eventId = events.ExecuteEvent())
+                {
+                    switch (eventId)
+                    {
+                    case 1:
+                        me->CastSpell(me->GetVictim(), SPELL_HEX_OF_LETHARGY, false);
+                        events.ScheduleEvent(1, 20000);
+                        break;
+                    case 2:
+                        me->CastSpell(me->GetVictim(), SPELL_DARK_BOLT, false);
+                        events.ScheduleEvent(2, 5000);
+                        break;
+                    }
+                }
+
+                DoMeleeAttackIfReady();
+            }
+        };
+
+        CreatureAI* GetAI(Creature* creature) const override
+        {
+            return new mob_glintrok_hexxer_AI(creature);
         }
 };
 
 void AddSC_boss_gekkan()
 {
     new boss_gekkan();
+    new mob_glintrok_hexxer();
+    new mob_glintrok_skulker();
+    new mob_glintrok_oracle();
+    new mob_glintrok_ironhide();
 }
